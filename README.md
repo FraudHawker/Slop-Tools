@@ -12,11 +12,21 @@ Open source OSINT utilities. Each tool is self-contained — pick the one you ne
 
 Each tool has its own directory with a Dockerfile, docker-compose.yml, and README. No shared dependencies between tools.
 
+This command clones the full `Slop-Tools` repository:
+
 ```bash
 git clone https://github.com/FraudHawker/Slop-Tools.git
-cd Slop-Tools/metadata-tool
-docker compose up -d
 ```
+
+Then `cd` into the tool you want. For example:
+
+```bash
+cd Slop-Tools/metadata-tool
+cp .env.example .env
+docker compose up -d --build
+```
+
+Each tool README also includes a "Download Just This Tool" option if you want a sparse checkout instead of the full repo.
 
 ## License
 

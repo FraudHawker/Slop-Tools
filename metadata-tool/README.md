@@ -6,13 +6,29 @@ Extracts and catalogs metadata from images, PDFs, Office documents, audio, and v
 
 ## Quick Start
 
+This command clones the full `Slop-Tools` repository, then opens the `metadata-tool` folder inside it.
+
 ```bash
-git clone <this-repo>
-cd metadata-tool
-docker compose up -d
+git clone https://github.com/FraudHawker/Slop-Tools.git
+cd Slop-Tools/metadata-tool
+cp .env.example .env
+docker compose up -d --build
 ```
 
 Open `http://localhost:8080`
+
+## Download Just This Tool
+
+If you only want the `metadata-tool` folder instead of the full repo:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/FraudHawker/Slop-Tools.git
+cd Slop-Tools
+git sparse-checkout set metadata-tool
+cd metadata-tool
+cp .env.example .env
+docker compose up -d --build
+```
 
 ## What It Does
 
