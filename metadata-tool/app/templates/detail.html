@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ file.original_name }} — Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="detail-header">
+    <div>
+        <h1>{{ file.original_name }}</h1>
+        <div class="detail-meta">
+            <span class="badge badge-type">{{ file.file_type }}</span>
+            <span>{{ file.mime_type }}</span>
+            <span>{{ "%.1f"|format(file.file_size / 1024) }} KB</span>
+            <span>{{ file.uploaded_at[:16] }}</span>
+        </div>
+    </div>
+    <div class="detail-actions">
+        <a href="{{ url_for('file_strip', file_id=file.id) }}" class="btn btn-strip">Download Clean</a>
+        <a href="{{ url_for('file_randomize', file_id=file.id) }}" class="btn btn-strip">Download Randomized</a>
+        <form method="post" action="{{ url_for('file_delete', file_id=file.id) }}" class="inline-form">
+            <button type="submit" class="btn btn-delete-lg">Delete</button>
+        </form>
+    </div>
+</div>
+
+{% if file.pii_flags %}
+<div class="pii-alert">
+    <strong>Privacy flags detected:</strong>
+    {% for flag in file.pii_flags %}
+        <span class="badge badge-pii">{{ flag }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if file.has_gps %}
+<div class="detail-map-container">
+    <h2>Location</h2>
+    <p class="gps-coords">{{ "%.6f"|format(file.gps_lat) }}, {{ "%.6f"|format(file.gps_lon) }}</p>
+    <div id="detail-map" class="detail-map"></div>
+</div>
+{% endif %}
+
+<div class="metadata-section">
+    <h2>All Metadata ({{ file.fields | length }} fields)</h2>
+
+    <div class="metadata-controls">
+        <input type="text" id="field-search" placeholder="Search fields...">
+        <label><input type="checkbox" id="pii-only-toggle"> PII only</label>
+    </div>
+
+    {% set grouped = {} %}
+    {% for field in file.fields %}
+        {% if field.tag_group not in grouped %}
+            {% set _ = grouped.update({field.tag_group: []}) %}
+        {% endif %}
+        {% set _ = grouped[field.tag_group].append(field) %}
+    {% endfor %}
+
+    {% for group, fields in grouped.items() %}
+    <div class="meta-group">
+        <h3 class="meta-group-title">{{ group }} <span class="meta-group-count">({{ fields | length }})</span></h3>
+        <table class="meta-table">
+            {% for field in fields %}
+            <tr class="meta-row {% if field.is_pii %}meta-pii{% endif %}"
+                data-name="{{ field.tag_name | lower }}"
+                data-value="{{ field.tag_value | lower }}"
+                data-pii="{{ field.is_pii }}">
+                <td class="meta-name">
+                    {{ field.tag_name }}
+                    {% if field.is_pii %}<span class="pii-dot" title="PII"></span>{% endif %}
+                </td>
+                <td class="meta-value">{{ field.tag_value }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% if file.has_gps %}
+<script>
+const map = L.map('detail-map').setView([{{ file.gps_lat }}, {{ file.gps_lon }}], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+L.marker([{{ file.gps_lat }}, {{ file.gps_lon }}]).addTo(map)
+    .bindPopup('{{ file.original_name }}').openPopup();
+</script>
+{% endif %}
+<script>
+const searchInput = document.getElementById('field-search');
+const piiToggle = document.getElementById('pii-only-toggle');
+const rows = document.querySelectorAll('.meta-row');
+
+function filterRows() {
+    const q = searchInput.value.toLowerCase();
+    const piiOnly = piiToggle.checked;
+    rows.forEach(row => {
+        const matchText = !q || row.dataset.name.includes(q) || row.dataset.value.includes(q);
+        const matchPii = !piiOnly || row.dataset.pii === '1';
+        row.style.display = (matchText && matchPii) ? '' : 'none';
+    });
+    // Hide empty groups
+    document.querySelectorAll('.meta-group').forEach(group => {
+        const visible = group.querySelectorAll('.meta-row:not([style*="display: none"])');
+        group.style.display = visible.length > 0 ? '' : 'none';
+    });
+}
+
+searchInput.addEventListener('input', filterRows);
+piiToggle.addEventListener('change', filterRows);
+</script>
+{% endblock %}

@@ -1,0 +1,7 @@
+flask>=3.0
+pillow>=10.0
+pikepdf>=8.0
+python-docx>=1.0
+openpyxl>=3.1
+mutagen>=1.47
+python-magic>=0.4.27

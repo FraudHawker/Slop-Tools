@@ -1,0 +1,9 @@
+data/
+__pycache__/
+*.pyc
+.env
+uploads/
+exports/
+.DS_Store
+*.tmp
+*.zip

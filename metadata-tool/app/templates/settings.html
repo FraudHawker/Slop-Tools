@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Settings — Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <h1>Settings</h1>
+    <p class="settings-intro">Control what gets flagged as PII. Changes reprocess all existing files.</p>
+
+    <div class="settings-section">
+        <h2>PII Categories</h2>
+        <p class="settings-hint">Toggle which types of metadata are flagged as privacy-sensitive.</p>
+
+        <form method="post">
+            <input type="hidden" name="action" value="save_categories">
+            <div class="category-grid">
+                {% for key, cat in all_categories.items() %}
+                <label class="category-item">
+                    <input type="checkbox" name="categories" value="{{ key }}"
+                        {% if key in settings.enabled_categories %}checked{% endif %}>
+                    <div class="category-info">
+                        <span class="category-label">{{ cat.label }}</span>
+                        <span class="category-desc">{{ cat.description }}</span>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-save">Save Categories</button>
+        </form>
+    </div>
+
+    <div class="settings-section">
+        <h2>Value Allowlist</h2>
+        <p class="settings-hint">Specific values to ignore even if the field is in a PII category. Case-insensitive.</p>
+
+        <form method="post" class="allowlist-add">
+            <input type="hidden" name="action" value="add_allowlist">
+            <input type="text" name="value" placeholder="e.g. Screenshot, Adobe Photoshop, Copyright Apple Inc.">
+            <button type="submit" class="btn btn-save">Add</button>
+        </form>
+
+        {% if settings.value_allowlist %}
+        <div class="allowlist-items">
+            {% for val in settings.value_allowlist %}
+            <div class="allowlist-item">
+                <span class="allowlist-value">{{ val }}</span>
+                <form method="post" class="inline-form">
+                    <input type="hidden" name="action" value="remove_allowlist">
+                    <input type="hidden" name="value" value="{{ val }}">
+                    <button type="submit" class="btn-delete" title="Remove">x</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="settings-empty">No allowlisted values.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

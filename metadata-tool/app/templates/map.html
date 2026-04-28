@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}GPS Map — Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="map-page">
+    <div class="map-header">
+        <h1>GPS Locations</h1>
+        <span class="map-count">{{ points | length }} geotagged file{{ 's' if points | length != 1 else '' }}</span>
+    </div>
+    {% if points %}
+    <div id="full-map" class="full-map"></div>
+    {% else %}
+    <div class="empty-state">
+        <p>No geotagged files found. Upload images with GPS data to see them here.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if points %}
+<script>
+const points = {{ points | tojson }};
+const map = L.map('full-map').setView([20, 0], 2);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+const markers = [];
+points.forEach(p => {
+    const marker = L.marker([p.gps_lat, p.gps_lon]).addTo(map);
+    marker.bindPopup(
+        '<strong><a href="/file/' + p.id + '">' + p.original_name + '</a></strong><br>' +
+        p.file_type + ' &middot; ' + p.uploaded_at.substring(0, 16)
+    );
+    markers.push(marker);
+});
+
+if (markers.length > 0) {
+    const group = new L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.1));
+}
+</script>
+{% endif %}
+{% endblock %}
