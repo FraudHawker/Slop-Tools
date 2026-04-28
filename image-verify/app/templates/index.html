@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set error_messages = get_flashed_messages(category_filter=['error']) %}
+{% if error_messages %}
+<details class="error-collapse" {% if error_messages|length <= 3 %}open{% endif %}>
+    <summary>{{ error_messages|length }} error{{ 's' if error_messages|length != 1 else '' }}</summary>
+    {% for msg in error_messages %}
+    <div class="flash error">{{ msg }}</div>
+    {% endfor %}
+</details>
+{% endif %}
+
+<div class="index-layout {% if not results and not batches %}index-layout-solo{% endif %}">
+    <div class="upload-section">
+        <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data" id="upload-form">
+            <div class="upload-zone" id="drop-zone">
+                <div id="preview-area" class="preview-area" style="display:none;"></div>
+                <div id="upload-prompt">
+                    <p class="upload-title">Drop images to analyze</p>
+                    <p class="upload-hint">JPEG, PNG, TIFF, WebP, HEIC — checks metadata integrity, C2PA provenance, thumbnail mismatch, and forensic signals</p>
+                </div>
+                <input type="file" name="files" id="file-input" accept="image/*" multiple>
+            </div>
+            <div id="upload-controls" style="display:none;">
+                <button type="submit" id="upload-btn">Analyze</button>
+                <button type="button" id="clear-btn" onclick="clearSelection()">Clear</button>
+            </div>
+        </form>
+    </div>
+
+    {% if batches or results %}
+    <div class="sidebar-wrap">
+        {% if batches %}
+        <div class="sidebar-col">
+            <div class="sidebar-header">
+                <h2>Batches</h2>
+            </div>
+            <div class="history-list">
+                {% for b in batches %}
+                <a href="{{ url_for('batch_result', batch_id=b.id) }}" class="history-item">
+                    <div class="history-item-top">
+                        <span class="history-filename">{{ b.count }} images</span>
+                    </div>
+                    <div class="history-summary">{{ b.files | join(', ') }}{% if b.count > 3 %}, ...{% endif %}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="sidebar-col">
+            <div class="sidebar-header">
+                <h2>Recent</h2>
+                {% if results %}
+                <form method="post" action="{{ url_for('clear') }}" class="inline-form"
+                      onsubmit="return confirm('Clear all analyses?');">
+                    <button type="submit" class="btn-clear">Clear</button>
+                </form>
+                {% endif %}
+            </div>
+            {% if results %}
+            <div class="history-list">
+                {% for r in results %}
+                <a href="{{ url_for('result', analysis_id=r.id) }}" class="history-item history-item-{{ r.verdict }}">
+                    <div class="history-item-top">
+                        <span class="history-filename">{{ r.filename }}</span>
+                        <span class="verdict-badge verdict-{{ r.verdict }}">{{ r.verdict | replace('_', ' ') }}</span>
+                    </div>
+                    <div class="history-summary">{{ r.summary }}</div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="history-empty">No analyses yet.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const controls = document.getElementById('upload-controls');
+const previewArea = document.getElementById('preview-area');
+const prompt = document.getElementById('upload-prompt');
+
+dropZone.addEventListener('click', (e) => {
+    if (e.target.closest('#preview-area')) return;
+    fileInput.click();
+});
+
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    fileInput.files = e.dataTransfer.files;
+    showPreviews();
+});
+
+fileInput.addEventListener('change', showPreviews);
+
+function showPreviews() {
+    const files = fileInput.files;
+    if (!files || files.length === 0) return;
+
+    previewArea.innerHTML = '';
+    previewArea.style.display = 'flex';
+    prompt.style.display = 'none';
+    controls.style.display = 'flex';
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const thumb = document.createElement('div');
+        thumb.className = 'preview-thumb';
+
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.onload = () => URL.revokeObjectURL(img.src);
+
+        const name = document.createElement('span');
+        name.className = 'preview-name';
+        name.textContent = file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name;
+
+        thumb.appendChild(img);
+        thumb.appendChild(name);
+        previewArea.appendChild(thumb);
+    }
+
+    if (files.length > 0) {
+        const count = document.createElement('div');
+        count.className = 'preview-count';
+        count.textContent = files.length + ' image' + (files.length !== 1 ? 's' : '') + ' selected';
+        previewArea.appendChild(count);
+    }
+}
+
+function clearSelection() {
+    fileInput.value = '';
+    previewArea.innerHTML = '';
+    previewArea.style.display = 'none';
+    prompt.style.display = 'block';
+    controls.style.display = 'none';
+}
+</script>
+{% endblock %}

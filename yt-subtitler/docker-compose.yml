@@ -1,0 +1,19 @@
+services:
+  yt-subtitler:
+    build: .
+    image: yt-subtitler:latest
+    ports:
+      - "8077:8077"
+    volumes:
+      - ./data:/data       # clips, subs, settings.json
+      - ./models:/models   # faster-whisper weights cache (~3GB for large-v3)
+    environment:
+      # Defaults for the LLM endpoint. Overridable in the Settings tab.
+      # host.docker.internal works on Docker Desktop (Mac/Windows) out of the box;
+      # extra_hosts below makes it work on Linux too.
+      LLM_BASE_URL: http://host.docker.internal:1234/v1
+      LLM_API_KEY:  lm-studio
+      COOKIES_FROM_BROWSER: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>yt-subtitler</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0e0f12; --panel: #16181d; --line: #2a2d35;
+    --fg: #e6e8eb; --muted: #8b909a; --accent: #6ea8ff; --ok: #4ade80; --err: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, system-ui, sans-serif;
+         background: var(--bg); color: var(--fg); }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 20px 80px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], select {
+    width: 100%; background: #0b0c0f; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 10px; font: inherit;
+  }
+  input[type=text]:focus, select:focus { outline: none; border-color: var(--accent); }
+  button { background: var(--accent); color: #0b0c0f; border: 0; border-radius: 6px;
+           padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: 500; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 0; }
+  .row > .narrow { flex: 0 0 130px; }
+  .player { position: relative; padding-bottom: 56.25%; height: 0; border-radius: 8px; overflow: hidden;
+            background: #000; margin-bottom: 12px; }
+  .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .timestamps { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stamp { display: flex; gap: 6px; }
+  .stamp input { flex: 1; }
+  .stamp button { flex: 0 0 auto; padding: 8px 10px; font-size: 12px; }
+  .status { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+            color: var(--muted); white-space: pre-wrap; }
+  .status.err { color: var(--err); }
+  .status.ok  { color: var(--ok); }
+  .files a { display: inline-block; margin-right: 12px; color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .tab { background: transparent; border: 0; color: var(--muted); padding: 10px 14px;
+         font: inherit; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+         border-radius: 6px 6px 0 0; transition: all 0.1s; }
+  .tab:hover { color: var(--fg); background: rgba(255,255,255,0.05); }
+  .tab.active { color: #fff; border-bottom-color: var(--fg); background: rgba(255,255,255,0.08); }
+  .recrop-video { width: 100%; max-height: 60vh; background: #000; border-radius: 8px;
+                  margin-bottom: 12px; }
+  .clip-list { max-height: 280px; overflow-y: auto; border: 1px solid var(--line);
+               border-radius: 6px; background: #0b0c0f; }
+  .clip-item { padding: 10px 12px; border-bottom: 1px solid var(--line);
+               cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+  .clip-item:last-child { border-bottom: 0; }
+  .clip-item:hover { background: #14161b; }
+  .clip-item.selected { background: #1d2230; color: var(--fg); }
+  .clip-item .meta { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>yt-subtitler</h1>
+  <p class="sub">Clip a portion of a YouTube video and burn in (translated) subtitles.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="new">New clip</button>
+    <button class="tab" data-tab="recrop">Re-crop</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <div id="tab-new">
+
+  <div class="panel">
+    <label for="url">YouTube URL</label>
+    <div class="row">
+      <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=…">
+      <button class="narrow" id="loadBtn">Load</button>
+    </div>
+    <div class="hint" id="meta"></div>
+  </div>
+
+  <div class="panel" id="playerPanel" style="display:none">
+    <div class="player"><div id="player"></div></div>
+
+    <div class="timestamps">
+      <div>
+        <label for="start">Start</label>
+        <div class="stamp">
+          <input type="text" id="start" placeholder="0:00">
+          <button class="ghost" id="setStart" title="Set to current playback time">⤓ now</button>
+        </div>
+      </div>
+      <div>
+        <label for="end">End</label>
+        <div class="stamp">
+          <input type="text" id="end" placeholder="0:30">
+          <button class="ghost" id="setEnd" title="Set to current playback time">⤓ now</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top: 12px">
+      <div>
+        <label for="source">Subtitle source</label>
+        <select id="source">
+          <option value="whisper" selected>Whisper only — works on any video (default)</option>
+          <option value="llm">YouTube subs + LM Studio translate</option>
+          <option value="auto">Auto — YouTube English, fall back to Whisper</option>
+          <option value="youtube">YouTube English only — fastest</option>
+        </select>
+      </div>
+      <div>
+        <label for="task">Whisper mode</label>
+        <select id="task">
+          <option value="translate" selected>Translate to English</option>
+          <option value="transcribe">Transcribe in original language</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-top: 12px">
+      <div>
+        <label for="model">Whisper model</label>
+        <select id="model">
+          <option value="tiny">tiny — fastest, lowest quality</option>
+          <option value="base">base</option>
+          <option value="small">small — balanced</option>
+          <option value="medium">medium — better translation</option>
+          <option value="large-v3" selected>large-v3 — best, slow (default)</option>
+        </select>
+      </div>
+      <div class="narrow">
+        <label>&nbsp;</label>
+        <button id="goBtn">Subtitle clip</button>
+      </div>
+    </div>
+    <div class="hint">YouTube subs are near-instant when available. Whisper is the fallback / for videos without subs. First run per Whisper model downloads weights (small ≈ 500MB, medium ≈ 1.5GB).</div>
+  </div>
+
+  <div class="panel" id="jobPanel" style="display:none">
+    <label>Job status</label>
+    <div class="status" id="status">…</div>
+    <div class="files" id="files" style="margin-top: 10px"></div>
+  </div>
+
+  </div><!-- /tab-new -->
+
+  <div id="tab-recrop" style="display:none">
+    <div class="panel">
+      <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+        <label style="margin:0">Past subtitled clips</label>
+        <button class="ghost" id="refreshClips" style="padding:4px 10px; font-size:12px">Refresh</button>
+      </div>
+      <div class="clip-list" id="clipList"><div class="clip-item">loading…</div></div>
+    </div>
+
+    <div class="panel" id="recropPanel" style="display:none">
+      <video class="recrop-video" id="recropVideo" controls preload="metadata"></video>
+
+      <div class="timestamps">
+        <div>
+          <label for="recropStart">Start</label>
+          <div class="stamp">
+            <input type="text" id="recropStart" placeholder="0:00">
+            <button class="ghost" id="recropSetStart" title="Use current playback time">⤓ now</button>
+          </div>
+        </div>
+        <div>
+          <label for="recropEnd">End</label>
+          <div class="stamp">
+            <input type="text" id="recropEnd" placeholder="0:30">
+            <button class="ghost" id="recropSetEnd" title="Use current playback time">⤓ now</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px">
+        <button id="recropGo">Trim</button>
+        <span class="hint" id="recropHint" style="margin-left: 12px"></span>
+      </div>
+      <div class="files" id="recropFiles" style="margin-top: 10px"></div>
+    </div>
+  </div><!-- /tab-recrop -->
+
+  <div id="tab-settings" style="display:none">
+    <div class="panel">
+      <p class="sub" style="margin: 0 0 16px">
+        OpenAI-compatible endpoint used by the <strong>YouTube subs + LM Studio translate</strong> mode.
+        Defaults work out-of-the-box with LM Studio on the same machine. Persisted to <code>data/settings.json</code>.
+      </p>
+
+      <label for="setBaseUrl">Base URL</label>
+      <input type="text" id="setBaseUrl" placeholder="http://127.0.0.1:1234/v1">
+      <div class="hint">LM Studio default: <code>http://127.0.0.1:1234/v1</code> · Ollama: <code>http://127.0.0.1:11434/v1</code> · OpenAI: <code>https://api.openai.com/v1</code></div>
+
+      <div style="margin-top: 12px">
+        <label for="setModel">Model</label>
+        <input type="text" id="setModel" placeholder="(blank = auto-pick first available)">
+        <div class="hint">Leave blank to auto-pick the first model returned by <code>/v1/models</code>.</div>
+      </div>
+
+      <div style="margin-top: 12px">
+        <label for="setApiKey">API key</label>
+        <input type="text" id="setApiKey" placeholder="lm-studio">
+        <div class="hint">LM Studio ignores this — any non-empty string works. For OpenAI, use your real key.</div>
+      </div>
+
+      <div style="margin-top: 16px; display:flex; gap: 8px">
+        <button id="setSaveBtn">Save</button>
+        <button class="ghost" id="setTestBtn">Test connection</button>
+        <span class="hint" id="setStatus" style="margin-left: 8px"></span>
+      </div>
+
+      <div id="setModels" style="margin-top: 12px"></div>
+    </div>
+  </div><!-- /tab-settings -->
+
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+let player = null;
+let videoDuration = 0;
+let pollHandle = null;
+
+function fmt(t) {
+  t = Math.max(0, Math.round(t));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function onYouTubeIframeAPIReady() { /* loaded; player created on demand */ }
+
+async function loadVideo() {
+  const url = document.getElementById('url').value.trim();
+  if (!url) return;
+  const meta = document.getElementById('meta');
+  meta.textContent = 'resolving…';
+  const res = await fetch('/api/resolve', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({url})
+  });
+  const data = await res.json();
+  if (!res.ok) { meta.textContent = 'error: ' + (data.error || 'failed'); return; }
+
+  videoDuration = data.duration || 0;
+  meta.textContent = (data.title ? data.title + ' · ' : '') +
+                     (videoDuration ? `${fmt(videoDuration)} long` : 'duration unknown');
+
+  document.getElementById('playerPanel').style.display = '';
+  if (player) { player.destroy(); player = null; }
+  player = new YT.Player('player', {
+    videoId: data.video_id,
+    playerVars: { rel: 0, modestbranding: 1 },
+  });
+
+  // Sensible default end if we know duration.
+  if (videoDuration && !document.getElementById('end').value) {
+    document.getElementById('end').value = fmt(Math.min(30, videoDuration));
+  }
+  if (!document.getElementById('start').value) {
+    document.getElementById('start').value = '0:00';
+  }
+}
+
+function setFromPlayer(id) {
+  if (!player || !player.getCurrentTime) return;
+  document.getElementById(id).value = fmt(player.getCurrentTime());
+}
+
+async function startJob() {
+  const body = {
+    url: document.getElementById('url').value.trim(),
+    start: document.getElementById('start').value.trim(),
+    end: document.getElementById('end').value.trim(),
+    model_size: document.getElementById('model').value,
+    task: document.getElementById('task').value,
+    source: document.getElementById('source').value,
+  };
+  const goBtn = document.getElementById('goBtn');
+  goBtn.disabled = true;
+  document.getElementById('jobPanel').style.display = '';
+  const status = document.getElementById('status');
+  status.className = 'status'; status.textContent = 'submitting…';
+  document.getElementById('files').innerHTML = '';
+
+  const res = await fetch('/api/clip', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    status.className = 'status err';
+    status.textContent = 'error: ' + (data.error || 'failed');
+    goBtn.disabled = false;
+    return;
+  }
+  pollJob(data.id, goBtn);
+}
+
+function pollJob(id, goBtn) {
+  if (pollHandle) clearInterval(pollHandle);
+  const status = document.getElementById('status');
+  const files = document.getElementById('files');
+  pollHandle = setInterval(async () => {
+    const res = await fetch(`/api/jobs/${id}`);
+    if (!res.ok) return;
+    const j = await res.json();
+    status.className = 'status' + (j.status === 'error' ? ' err' : j.status === 'done' ? ' ok' : '');
+    status.textContent = `[${j.status}] ${j.message || ''}`.trim();
+    if (j.status === 'done' || j.status === 'error') {
+      clearInterval(pollHandle); pollHandle = null;
+      goBtn.disabled = false;
+      files.innerHTML = '';
+      (j.files || []).forEach(name => {
+        const a = document.createElement('a');
+        a.href = `/api/jobs/${id}/file/${name}`;
+        a.textContent = '⬇ ' + name;
+        files.appendChild(a);
+      });
+    }
+  }, 1500);
+}
+
+document.getElementById('loadBtn').addEventListener('click', loadVideo);
+document.getElementById('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadVideo(); });
+document.getElementById('setStart').addEventListener('click', () => setFromPlayer('start'));
+document.getElementById('setEnd').addEventListener('click', () => setFromPlayer('end'));
+document.getElementById('goBtn').addEventListener('click', startJob);
+
+// ---- Tabs ----
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const which = btn.dataset.tab;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('tab-new').style.display      = (which === 'new')      ? '' : 'none';
+    document.getElementById('tab-recrop').style.display   = (which === 'recrop')   ? '' : 'none';
+    document.getElementById('tab-settings').style.display = (which === 'settings') ? '' : 'none';
+    if (which === 'recrop')   loadClipList();
+    if (which === 'settings') loadSettings();
+  });
+});
+
+// ---- Settings tab ----
+async function loadSettings() {
+  const res = await fetch('/api/settings');
+  const s = await res.json();
+  document.getElementById('setBaseUrl').value = s.llm_base_url || '';
+  document.getElementById('setModel').value   = s.llm_model    || '';
+  document.getElementById('setApiKey').value  = s.llm_api_key  || '';
+  document.getElementById('setStatus').textContent = '';
+  document.getElementById('setModels').innerHTML = '';
+}
+
+function readSettingsForm() {
+  return {
+    llm_base_url: document.getElementById('setBaseUrl').value.trim(),
+    llm_model:    document.getElementById('setModel').value.trim(),
+    llm_api_key:  document.getElementById('setApiKey').value.trim(),
+  };
+}
+
+async function saveSettings() {
+  const status = document.getElementById('setStatus');
+  status.textContent = 'saving…';
+  const res = await fetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(readSettingsForm()),
+  });
+  status.textContent = res.ok ? 'saved.' : 'save failed';
+}
+
+async function testSettings() {
+  const status = document.getElementById('setStatus');
+  const list = document.getElementById('setModels');
+  status.textContent = 'testing…'; list.innerHTML = '';
+  const res = await fetch('/api/settings/test', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(readSettingsForm()),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    status.textContent = `connected · using "${data.selected}"`;
+    if (data.available && data.available.length) {
+      list.innerHTML = '<label>Models available at this endpoint</label>' +
+        '<div class="hint">' + data.available.map(m =>
+          `<code style="display:inline-block; margin: 2px 4px; padding: 2px 6px; background:#0b0c0f; border:1px solid var(--line); border-radius:4px">${m}</code>`
+        ).join('') + '</div>';
+    }
+  } else {
+    status.textContent = 'failed: ' + (data.error || 'unknown error');
+  }
+}
+
+document.getElementById('setSaveBtn').addEventListener('click', saveSettings);
+document.getElementById('setTestBtn').addEventListener('click', testSettings);
+
+// ---- Re-crop tab ----
+let selectedClipId = null;
+const recropVideo = document.getElementById('recropVideo');
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function loadClipList() {
+  const list = document.getElementById('clipList');
+  list.innerHTML = '<div class="clip-item">loading…</div>';
+  const res = await fetch('/api/clips');
+  const data = await res.json();
+  const clips = data.clips || [];
+  if (!clips.length) {
+    list.innerHTML = '<div class="clip-item">No subtitled clips yet — make one in the New clip tab first.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  clips.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'clip-item' + (c.id === selectedClipId ? ' selected' : '');
+    const when = new Date(c.mtime * 1000).toLocaleString();
+    const range = (c.start != null && c.end != null)
+      ? `${fmt(c.start)} → ${fmt(c.end)}`
+      : c.id;
+    const subline = (c.start != null && c.end != null) ? when : when;
+    row.innerHTML =
+      `<div><div>${range}</div><div class="meta">${subline}</div></div>` +
+      `<div class="meta">${fmt(c.duration)} · ${fmtBytes(c.size)}</div>`;
+    row.dataset.id = c.id;
+    row.addEventListener('click', () => selectClip(c.id, c.duration));
+    list.appendChild(row);
+  });
+}
+
+function selectClip(id, duration) {
+  selectedClipId = id;
+  document.querySelectorAll('#clipList .clip-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+  document.getElementById('recropPanel').style.display = '';
+  recropVideo.src = `/api/clips/${id}/video`;
+  recropVideo.load();
+  document.getElementById('recropStart').value = '0:00';
+  document.getElementById('recropEnd').value = duration ? fmt(duration) : '';
+  document.getElementById('recropFiles').innerHTML = '';
+  document.getElementById('recropHint').textContent = '';
+}
+
+function setFromRecrop(id) {
+  if (!recropVideo || isNaN(recropVideo.currentTime)) return;
+  document.getElementById(id).value = fmt(recropVideo.currentTime);
+}
+
+async function trimClip() {
+  if (!selectedClipId) return;
+  const btn = document.getElementById('recropGo');
+  const hint = document.getElementById('recropHint');
+  const files = document.getElementById('recropFiles');
+  btn.disabled = true; hint.textContent = 'trimming…'; files.innerHTML = '';
+  const res = await fetch('/api/recrop', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      clip_id: selectedClipId,
+      start: document.getElementById('recropStart').value.trim(),
+      end:   document.getElementById('recropEnd').value.trim(),
+    }),
+  });
+  const data = await res.json();
+  btn.disabled = false;
+  if (!res.ok) { hint.textContent = 'error: ' + (data.error || 'failed'); return; }
+  hint.textContent = `done — ${data.duration.toFixed(1)}s, ${fmtBytes(data.size)}`;
+  const a = document.createElement('a');
+  a.href = `/api/clips/${selectedClipId}/recrop?t=${Date.now()}`;
+  a.textContent = '⬇ recrop.mp4';
+  files.appendChild(a);
+}
+
+document.getElementById('refreshClips').addEventListener('click', loadClipList);
+document.getElementById('recropSetStart').addEventListener('click', () => setFromRecrop('recropStart'));
+document.getElementById('recropSetEnd').addEventListener('click', () => setFromRecrop('recropEnd'));
+document.getElementById('recropGo').addEventListener('click', trimClip);
+</script>
+</body>
+</html>

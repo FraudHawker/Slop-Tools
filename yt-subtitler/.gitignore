@@ -1,0 +1,21 @@
+# Output / runtime
+data/
+models/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# macOS launcher (user-specific paths)
+yt-subtitler.command

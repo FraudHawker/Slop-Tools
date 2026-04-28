@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}image-verify{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            {% if request.endpoint == 'result' and batch_id is defined and batch_id %}
+            <a href="{{ url_for('batch_result', batch_id=batch_id) }}" class="nav-back">&larr;</a>
+            {% elif request.endpoint != 'index' %}
+            <a href="{{ url_for('index') }}" class="nav-back">&larr;</a>
+            {% endif %}
+            <a href="{{ url_for('index') }}" class="nav-brand">image-verify</a>
+            <div class="nav-links">
+                <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Analyze</a>
+                <a href="{{ url_for('examples_page') }}" {% if request.endpoint == 'examples_page' %}class="active"{% endif %}>Examples</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        {% if request.endpoint != 'index' %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+        {% else %}
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+            {% if category != 'error' %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endif %}
+        {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

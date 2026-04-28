@@ -1,0 +1,11 @@
+services:
+  image-verify:
+    build: .
+    ports:
+      - "${PORT:-8085}:8085"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-50}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    restart: unless-stopped

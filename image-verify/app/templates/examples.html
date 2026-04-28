@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Examples — image-verify{% endblock %}
+
+{% block content %}
+<div class="examples-page">
+    <h1>Forensic Analysis Examples</h1>
+    <p class="examples-intro">
+        These are synthetic images with known, intentional manipulations — designed to show what
+        ELA, noise analysis, and JPEG ghost detection look like when they detect something.
+        <strong>These techniques were built for crude copy-paste edits. Modern AI editing often
+        produces clean results that pass all three checks.</strong>
+    </p>
+
+    {% for ex in examples %}
+    <div class="example-card">
+        <h2>{{ ex.title }}</h2>
+        <p class="example-desc">{{ ex.description }}</p>
+
+        <div class="example-images">
+            <div class="example-img">
+                <img src="{{ url_for('example_image', example_id=ex.id, filename=ex.image) }}" alt="Manipulated image">
+                <span>Manipulated Image</span>
+            </div>
+            {% if ex.analysis_image %}
+            <div class="example-img">
+                <img src="{{ url_for('example_image', example_id=ex.id, filename=ex.analysis_image) }}" alt="Analysis result">
+                <span>Analysis Output</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="example-look-for">
+            <strong>What to look for:</strong> {{ ex.what_to_look_for }}
+        </div>
+
+        <div class="example-caveat">
+            <strong>Why this doesn't catch modern edits:</strong> {{ ex.caveat }}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="examples-bottom">
+        <p>
+            The point of showing these examples is honesty. These techniques work against
+            basic Photoshop splicing, but they are largely ineffective against AI inpainting,
+            generative fill, and diffusion-based editing. The high-signal checks (C2PA provenance,
+            thumbnail mismatch, metadata integrity) are more reliable for modern image verification.
+        </p>
+    </div>
+</div>
+{% endblock %}

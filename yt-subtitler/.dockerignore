@@ -1,0 +1,12 @@
+data/
+models/
+__pycache__/
+*.py[cod]
+.venv/
+.git/
+.gitignore
+.dockerignore
+.DS_Store
+yt-subtitler.command
+README.md
+LICENSE

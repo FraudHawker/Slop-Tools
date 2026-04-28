@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}{{ r.filename }} — image-verify{% endblock %}
+
+{% block content %}
+<div class="result-page">
+
+    <!-- Verdict Banner -->
+    <div class="verdict-banner verdict-bg-{{ r.verdict.level }}">
+        <div class="verdict-level">{{ r.verdict.level | replace('_', ' ') | upper }}</div>
+        <div class="verdict-summary">{{ r.verdict.summary }}</div>
+        <div class="verdict-confidence">Confidence: {{ r.verdict.confidence }}</div>
+    </div>
+
+    <div class="result-header">
+        <div>
+            <h1>{{ r.filename }}</h1>
+            <div class="result-meta">
+                <span>{{ r.mime_type }}</span>
+                <span>{{ "%.1f"|format(r.file_size / 1024) }} KB</span>
+            </div>
+        </div>
+        <div class="result-actions">
+            <a href="{{ url_for('result_original', analysis_id=analysis_id) }}" class="btn" target="_blank">View Original</a>
+            <a href="{{ url_for('result_json', analysis_id=analysis_id) }}" class="btn">JSON</a>
+        </div>
+    </div>
+
+    <!-- TIER 1: Definitive Checks -->
+    <div class="analysis-tier">
+        <h2>High-Signal Checks</h2>
+        <p class="tier-desc">These checks generally carry more weight than classic forensic heuristics, but they still need interpretation.</p>
+
+        <!-- C2PA -->
+        <div class="analysis-card status-{{ r.c2pa.status }}">
+            <div class="card-header">
+                <h3>C2PA Provenance</h3>
+                <span class="status-badge status-{{ r.c2pa.status }}">{{ r.c2pa.status }}</span>
+            </div>
+            <p class="card-summary">{{ r.c2pa.summary }}</p>
+            {% if r.c2pa.detail %}
+            <p class="card-detail">{{ r.c2pa.detail }}</p>
+            {% endif %}
+            {% if r.c2pa.provenance %}
+            <div class="provenance-chain">
+                <h4>Provenance Chain</h4>
+                {% for p in r.c2pa.provenance %}
+                <div class="provenance-step">
+                    <span class="prov-generator">{{ p.generator }}</span>
+                    {% if p.actions %}
+                    <span class="prov-actions">{{ p.actions | join(', ') }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Thumbnail Mismatch -->
+        <div class="analysis-card status-{{ r.thumbnail.status }}">
+            <div class="card-header">
+                <h3>Thumbnail Mismatch</h3>
+                <span class="status-badge status-{{ r.thumbnail.status }}">{{ r.thumbnail.status }}</span>
+            </div>
+            <p class="card-summary">{{ r.thumbnail.summary }}</p>
+            {% for finding in r.thumbnail.findings %}
+            <p class="card-detail">{{ finding.detail }}</p>
+            {% endfor %}
+            {% if r.thumbnail.saved_paths %}
+            <div class="comparison-images">
+                {% if r.thumbnail.saved_paths.main_resized %}
+                <div class="comp-img">
+                    <img src="{{ url_for('result_image', analysis_id=analysis_id, filename='main_resized.jpg') }}" alt="Main image">
+                    <span>Main Image</span>
+                </div>
+                {% endif %}
+                {% if r.thumbnail.saved_paths.thumbnail %}
+                <div class="comp-img">
+                    <img src="{{ url_for('result_image', analysis_id=analysis_id, filename='thumbnail.jpg') }}" alt="Embedded thumbnail">
+                    <span>Embedded Thumbnail</span>
+                </div>
+                {% endif %}
+                {% if r.thumbnail.saved_paths.diff %}
+                <div class="comp-img">
+                    <img src="{{ url_for('result_image', analysis_id=analysis_id, filename='thumb_diff.jpg') }}" alt="Difference">
+                    <span>Difference (amplified)</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Metadata Integrity -->
+        <div class="analysis-card status-{{ r.metadata.status }}">
+            <div class="card-header">
+                <h3>Metadata Integrity</h3>
+                <span class="status-badge status-{{ r.metadata.status }}">{{ r.metadata.status }}</span>
+            </div>
+            <p class="card-summary">{{ r.metadata.summary }}</p>
+            {% for finding in r.metadata.findings %}
+            <div class="finding finding-{{ finding.severity }}">
+                <div class="finding-header">
+                    <span class="finding-check">{{ finding.check }}</span>
+                    <span class="finding-severity">{{ finding.severity }}</span>
+                </div>
+                <div class="finding-result">{{ finding.result }}</div>
+                <div class="finding-detail">{{ finding.detail }}</div>
+            </div>
+            {% endfor %}
+            {% if r.metadata.camera %}
+            <div class="meta-quick">Camera: {{ r.metadata.camera }}</div>
+            {% endif %}
+            {% if r.metadata.software %}
+            <div class="meta-quick">Software: {{ r.metadata.software }}</div>
+            {% endif %}
+            {% if r.metadata.dates %}
+            <div class="meta-quick">Dates: {{ r.metadata.dates.values() | list | join(', ') }}</div>
+            {% endif %}
+
+            {% if r.metadata.fields %}
+            <details class="metadata-expand">
+                <summary>View all {{ r.metadata.field_count }} metadata fields</summary>
+                <div class="metadata-table-wrap">
+                    <input type="text" class="meta-search" placeholder="Search fields..." onkeyup="filterMeta(this)">
+                    <table class="metadata-table">
+                        <thead>
+                            <tr><th>Field</th><th>Value</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for key, val in r.metadata.fields.items() | sort %}
+                            <tr data-field="{{ key|lower }}{{ val|lower }}">
+                                <td class="meta-field-name">{{ key }}</td>
+                                <td class="meta-field-value">{{ val }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TIER 2: Forensic Checks -->
+    <div class="analysis-tier">
+        <h2>Forensic Analysis</h2>
+        <div class="tier-caveat">
+            These techniques have significant limitations against modern AI editing tools.
+            A clean result does NOT prove authenticity. A flagged result is a lead, not proof.
+            Use alongside the definitive checks above.
+        </div>
+
+        <!-- ELA -->
+        <div class="analysis-card status-{{ r.ela.status }}">
+            <div class="card-header">
+                <h3>Error Level Analysis</h3>
+                <span class="status-badge status-{{ r.ela.status }}">{{ r.ela.status }}</span>
+            </div>
+            <p class="card-summary">{{ r.ela.summary }}</p>
+            {% for finding in r.ela.findings %}
+            <p class="card-detail">{{ finding.detail }}</p>
+            {% if finding.caveat %}
+            <p class="card-caveat">{{ finding.caveat }}</p>
+            {% endif %}
+            {% endfor %}
+            {% if r.ela.saved_paths and r.ela.saved_paths.ela %}
+            <div class="forensic-image">
+                <img src="{{ url_for('result_image', analysis_id=analysis_id, filename='ela.jpg') }}" alt="ELA">
+                <span>ELA visualization — brighter areas indicate higher error levels</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Noise -->
+        <div class="analysis-card status-{{ r.noise.status }}">
+            <div class="card-header">
+                <h3>Noise Analysis</h3>
+                <span class="status-badge status-{{ r.noise.status }}">{{ r.noise.status }}</span>
+            </div>
+            <p class="card-summary">{{ r.noise.summary }}</p>
+            {% for finding in r.noise.findings %}
+            <p class="card-detail">{{ finding.detail }}</p>
+            {% if finding.caveat %}
+            <p class="card-caveat">{{ finding.caveat }}</p>
+            {% endif %}
+            {% endfor %}
+            {% if r.noise.saved_paths and r.noise.saved_paths.noise %}
+            <div class="forensic-image">
+                <img src="{{ url_for('result_image', analysis_id=analysis_id, filename='noise.jpg') }}" alt="Noise map">
+                <span>Noise pattern — inconsistencies may indicate compositing</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- JPEG Ghosts -->
+        <div class="analysis-card status-{{ r.jpeg_ghosts.status }}">
+            <div class="card-header">
+                <h3>JPEG Ghost Detection</h3>
+                <span class="status-badge status-{{ r.jpeg_ghosts.status }}">{{ r.jpeg_ghosts.status }}</span>
+            </div>
+            <p class="card-summary">{{ r.jpeg_ghosts.summary }}</p>
+            {% for finding in r.jpeg_ghosts.findings %}
+            <p class="card-detail">{{ finding.detail }}</p>
+            {% if finding.caveat %}
+            <p class="card-caveat">{{ finding.caveat }}</p>
+            {% endif %}
+            {% endfor %}
+            {% if r.jpeg_ghosts.saved_paths and r.jpeg_ghosts.saved_paths.jpeg_ghosts %}
+            <div class="forensic-image">
+                <img src="{{ url_for('result_image', analysis_id=analysis_id, filename='jpeg_ghosts.jpg') }}" alt="JPEG ghost map">
+                <span>Compression level map — different colors indicate different JPEG quality histories</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Reverse Image Search -->
+    <div class="analysis-tier">
+        <h2>Reverse Image Search</h2>
+        <p class="tier-desc">Search for this image across the web. Opens in a new tab.</p>
+        <div class="search-links">
+            {% for link in r.reverse_search.links %}
+            <a href="{{ link.url }}" target="_blank" rel="noopener" class="search-link">
+                {{ link.engine }}
+                {% if link.type == 'upload' %}<span class="search-note">(manual upload)</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterMeta(input) {
+    const q = input.value.toLowerCase();
+    const rows = input.closest('.metadata-table-wrap').querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        row.style.display = row.dataset.field.includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Batch Results — image-verify{% endblock %}
+
+{% block content %}
+<div class="batch-page">
+    <h1>Batch Analysis</h1>
+    <p class="batch-intro">{{ batch | length }} image{{ 's' if batch | length != 1 else '' }} analyzed.</p>
+
+    {% if errors %}
+    <div class="batch-errors">
+        {% for err in errors %}
+        <div class="flash error">{{ err }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="batch-results">
+        {% for r in batch %}
+        <a href="{{ url_for('result', analysis_id=r.id, batch=batch_id) }}" class="batch-card history-item-{{ r.verdict }}">
+            <div class="batch-card-header">
+                <span class="batch-filename">{{ r.filename }}</span>
+                <span class="verdict-badge verdict-{{ r.verdict }}">{{ r.verdict | replace('_', ' ') }}</span>
+            </div>
+            <div class="batch-summary">{{ r.summary }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
